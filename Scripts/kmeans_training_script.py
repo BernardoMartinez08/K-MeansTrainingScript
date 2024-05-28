@@ -3,6 +3,7 @@ import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 import joblib
 import os
 import time
@@ -42,19 +43,59 @@ def load_model(model_dir, k):
 
 
 # Función para graficar los resultados
-def plot_kmeans(data, kmeans, k, dataset_name):
+def plot_kmeans(data, kmeans, k, sample_percentage=0.1):
     print(f'Graficando resultados para k = {k}')
     start_time = time.time()
-    y_kmeans = kmeans.predict(data)
+
+    # Muestrear aleatoriamente un subconjunto de los datos
+    sample_size = int(len(data) * sample_percentage)
+    sample_indices = np.random.choice(len(data), sample_size, replace=False)
+    data_sample = data[sample_indices]
+
+    y_kmeans = kmeans.predict(data_sample)
     centers = kmeans.cluster_centers_
 
-    plt.scatter(data[:, 0], data[:, 1], c=y_kmeans, s=50, cmap='viridis')
+    plt.scatter(data_sample[:, 0], data_sample[:, 1], c=y_kmeans, s=50, cmap='viridis')
     plt.scatter(centers[:, 0], centers[:, 1], c='red', s=200, alpha=0.75)
     plt.title(f'K = {k}')
     plt.xlabel('X')
     plt.ylabel('Y')
+
     end_time = time.time()
     print(f'Tiempo de graficación para k = {k}: {end_time - start_time:.2f} segundos')
+
+
+def plot_inertia_and_silhouette(data, dataset_name, k_max, sample_percentage=0.1):
+    # Muestrear aleatoriamente un subconjunto de los datos
+    sample_size = int(len(data) * sample_percentage)
+    sample_indices = np.random.choice(len(data), sample_size, replace=False)
+    data_sample = data[sample_indices]
+
+    inertias = []
+    silhouette_scores = []
+
+    for k in range(2, k_max + 1):
+        kmeans = KMeans(n_clusters=k, random_state=0)
+        kmeans.fit(data_sample)
+        inertias.append(kmeans.inertia_)
+        silhouette_scores.append(silhouette_score(data_sample, kmeans.labels_))
+
+    fig, ax1 = plt.subplots()
+
+    color = 'tab:blue'
+    ax1.set_xlabel('Número de Clusters (K)')
+    ax1.set_ylabel('Inercia', color=color)
+    ax1.plot(range(2, k_max + 1), inertias, 'o-', color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()
+    color = 'tab:red'
+    ax2.set_ylabel('Coeficiente de Silueta', color=color)
+    ax2.plot(range(2, k_max + 1), silhouette_scores, 'o-', color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    plt.title(f'Inercia y Coeficiente de Silueta para {dataset_name}')
+    plt.show()
 
 
 # Main script
@@ -81,7 +122,7 @@ def main(data_path, model_dir, plt_dir, k_max):
             kmeans = train_kmeans(data, k)
             save_model(kmeans, model_path, k)
             plt.subplot(2, 3, k)
-            plot_kmeans(data, kmeans, k, name)
+            plot_kmeans(data, kmeans, k)
 
         print(f'\n\n\nMostrando resultados de K-means para {name}')
         plt.suptitle(f'Resultados de K-means para {name}')
@@ -90,6 +131,9 @@ def main(data_path, model_dir, plt_dir, k_max):
         print(f'Gráfico guardado en {plt_path}/kmeans_results.png')
         plt.show()
         plt.close()
+
+        # Aplicar la función a cada dataset
+        #plot_inertia_and_silhouette(data, name, k_max)
 
 
 if __name__ == '__main__':
